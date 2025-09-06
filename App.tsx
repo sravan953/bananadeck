@@ -3,7 +3,8 @@ import { FileUpload } from './components/FileUpload';
 import { SlideCanvas } from './components/SlideCanvas';
 import { Loader } from './components/Loader';
 import { Slideshow } from './components/Slideshow';
-import type { UploadedResource, Slide, PresentationStyle, Presentation } from './types';
+import { ExpansionTypeSelector } from './components/ExpansionTypeSelector';
+import type { UploadedResource, Slide, PresentationStyle, Presentation, ExpansionHistory } from './types';
 import { ViewMode } from './types';
 import { generateSlideStructure, expandSlideConcept, generateSlideImage } from './services/geminiService';
 
@@ -19,21 +20,25 @@ const App: React.FC = () => {
 
   const [isSlideshowVisible, setIsSlideshowVisible] = useState(false);
   const [slideshowIndex, setSlideshowIndex] = useState(0);
+  
+  const [showExpansionSelector, setShowExpansionSelector] = useState(false);
+  const [slideToExpand, setSlideToExpand] = useState<Slide | null>(null);
+  const [expansionHistory, setExpansionHistory] = useState<ExpansionHistory[]>([]);
+  const [currentParentSlide, setCurrentParentSlide] = useState<Slide | null>(null);
 
   const currentSlides = viewMode === ViewMode.EXPANDED_VIEW ? expandedSlides : mainDeck;
 
   useEffect(() => {
-    if (presentation) {
-      const fontLink = document.createElement('link');
-      fontLink.rel = 'stylesheet';
-      fontLink.href = `https://fonts.googleapis.com/css2?family=${presentation.style.font.replace(/ /g, '+')}&display=swap`;
-      document.head.appendChild(fontLink);
-      
-      return () => {
-        document.head.removeChild(fontLink);
-      }
+    // Always load Inter font for consistent styling
+    const fontLink = document.createElement('link');
+    fontLink.rel = 'stylesheet';
+    fontLink.href = `https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap`;
+    document.head.appendChild(fontLink);
+    
+    return () => {
+      document.head.removeChild(fontLink);
     }
-  }, [presentation]);
+  }, []);
 
   // Keyboard navigation for slideshow
   useEffect(() => {
@@ -75,7 +80,7 @@ const App: React.FC = () => {
       for (let i = 0; i < result.slides.length; i++) {
         setLoadingMessage(`Generating slide visual ${i + 1} of ${result.slides.length}...`);
         try {
-          const imageUrl = await generateSlideImage(result.slides[i], result.style);
+          const imageUrl = await generateSlideImage(result.slides[i], result.style, { isExpandable: true });
           // Use a functional update to add the new image URL to the correct slide.
           // This ensures the UI updates immediately after each image is ready.
           setMainDeck(currentSlides =>
@@ -98,24 +103,59 @@ const App: React.FC = () => {
     }
   }, [files]);
   
-  const handleExpand = useCallback(async (slide: Slide) => {
+  const handleExpand = useCallback((slide: Slide) => {
     if (!presentation || slide.id === 'placeholder') return;
+    setSlideToExpand(slide);
+    setShowExpansionSelector(true);
+  }, [presentation]);
+
+  const handleExpansionTypeSelected = useCallback(async (expansionType: 'technical' | 'business' | 'examples' | 'questions') => {
+    if (!slideToExpand || !presentation) return;
+    
+    setShowExpansionSelector(false);
     setIsLoading(true);
+    
     try {
-      setLoadingMessage(`Expanding on "${slide.title}"...`);
-      const newSlides = await expandSlideConcept(slide, presentation.style);
-      setExpandedSlides(newSlides);
+      setLoadingMessage(`Creating ${expansionType} expansion for "${slideToExpand.title}"...`);
+      const newSlides = await expandSlideConcept(slideToExpand, presentation.style, expansionType);
+      
+      // Add expansion metadata to the new slides
+      const slidesWithMetadata = newSlides.map((slide, index) => ({
+        ...slide,
+        parentSlideId: slideToExpand.id,
+        expansionDepth: (slideToExpand.expansionDepth || 0) + 1,
+        expansionType
+      }));
+      
+      setExpandedSlides(slidesWithMetadata);
+      setCurrentParentSlide(slideToExpand);
       setViewMode(ViewMode.EXPANDED_VIEW);
+      
+      // Track expansion history
+      setExpansionHistory(prev => [...prev, {
+        parentSlideId: slideToExpand.id,
+        parentSlideTitle: slideToExpand.title,
+        expandedSlides: slidesWithMetadata,
+        expansionType,
+        timestamp: Date.now()
+      }]);
 
       // Generate images for the expanded view progressively.
-      for (let i = 0; i < newSlides.length; i++) {
-          setLoadingMessage(`Generating expanded visual ${i + 1} of ${newSlides.length}...`);
+      for (let i = 0; i < slidesWithMetadata.length; i++) {
+          setLoadingMessage(`Generating expanded visual ${i + 1} of ${slidesWithMetadata.length}...`);
           try {
-            const imageUrl = await generateSlideImage(newSlides[i], presentation.style);
-             // Use a functional update to add the new image URL to the correct expanded slide.
+            const imageUrl = await generateSlideImage(
+              slidesWithMetadata[i], 
+              presentation.style,
+              {
+                isExpanded: true,
+                parentSlide: slideToExpand.title,
+                depth: slidesWithMetadata[i].expansionDepth
+              }
+            );
             setExpandedSlides(currentSlides =>
               currentSlides.map(s =>
-                s.id === newSlides[i].id ? { ...s, imageUrl } : s
+                s.id === slidesWithMetadata[i].id ? { ...s, imageUrl } : s
               )
             );
           } catch (imageError) {
@@ -128,8 +168,9 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
       setLoadingMessage('');
+      setSlideToExpand(null);
     }
-  }, [presentation]);
+  }, [slideToExpand, presentation]);
 
   const handleGoBack = () => {
     setViewMode(ViewMode.MAIN_DECK);
@@ -167,6 +208,8 @@ const App: React.FC = () => {
           isExpandedView={viewMode === ViewMode.EXPANDED_VIEW}
           onGoBack={handleGoBack}
           onStartSlideshow={handleStartSlideshow}
+          parentSlide={currentParentSlide}
+          expansionType={expandedSlides[0]?.expansionType}
         />
         {isSlideshowVisible && presentation && (
           <Slideshow 
@@ -176,6 +219,18 @@ const App: React.FC = () => {
             onClose={() => setIsSlideshowVisible(false)}
             onNext={() => setSlideshowIndex(prev => (prev + 1) % currentSlides.length)}
             onPrev={() => setSlideshowIndex(prev => (prev - 1 + currentSlides.length) % currentSlides.length)}
+          />
+        )}
+        
+        {/* Expansion Type Selector Modal */}
+        {showExpansionSelector && slideToExpand && (
+          <ExpansionTypeSelector
+            slideTitle={slideToExpand.title}
+            onSelect={handleExpansionTypeSelected}
+            onCancel={() => {
+              setShowExpansionSelector(false);
+              setSlideToExpand(null);
+            }}
           />
         )}
       </main>

@@ -17,6 +17,10 @@ export interface Slide {
   content: string[];
   infographicSuggestion?: string;
   imageUrl?: string;
+  isExpandable?: boolean;
+  parentSlideId?: string;
+  expansionDepth?: number;
+  expansionType?: 'technical' | 'business' | 'examples' | 'questions';
 }
 
 export interface PresentationStyle {
@@ -34,4 +38,12 @@ export interface Presentation {
 export enum ViewMode {
   MAIN_DECK,
   EXPANDED_VIEW,
+}
+
+export interface ExpansionHistory {
+  parentSlideId: string;
+  parentSlideTitle: string;
+  expandedSlides: Slide[];
+  expansionType: 'technical' | 'business' | 'examples' | 'questions';
+  timestamp: number;
 }
