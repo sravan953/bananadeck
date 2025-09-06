@@ -37,7 +37,7 @@ Create a presentation structure with the following format:
 
 # [Presentation Title]
 
-## Slide 1: [Title/Introduction]
+## Slide 1: [Title]
 - [Key point 1]
 - [Key point 2]
 - [Key point 3]
