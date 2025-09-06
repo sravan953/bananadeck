@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { SlideCanvas } from './components/SlideCanvas';
 import { Loader } from './components/Loader';
+import { Slideshow } from './components/Slideshow';
 import type { UploadedResource, Slide, PresentationStyle, Presentation } from './types';
 import { ViewMode } from './types';
 import { generateSlideStructure, expandSlideConcept, generateSlideImage } from './services/geminiService';
@@ -16,6 +17,11 @@ const App: React.FC = () => {
   const [mainDeck, setMainDeck] = useState<Slide[]>([]);
   const [expandedSlides, setExpandedSlides] = useState<Slide[]>([]);
 
+  const [isSlideshowVisible, setIsSlideshowVisible] = useState(false);
+  const [slideshowIndex, setSlideshowIndex] = useState(0);
+
+  const currentSlides = viewMode === ViewMode.EXPANDED_VIEW ? expandedSlides : mainDeck;
+
   useEffect(() => {
     if (presentation) {
       const fontLink = document.createElement('link');
@@ -28,6 +34,26 @@ const App: React.FC = () => {
       }
     }
   }, [presentation]);
+
+  // Keyboard navigation for slideshow
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isSlideshowVisible) return;
+
+      if (event.key === 'ArrowRight') {
+        setSlideshowIndex(prev => (prev + 1) % currentSlides.length);
+      } else if (event.key === 'ArrowLeft') {
+        setSlideshowIndex(prev => (prev - 1 + currentSlides.length) % currentSlides.length);
+      } else if (event.key === 'Escape') {
+        setIsSlideshowVisible(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isSlideshowVisible, currentSlides.length]);
 
 
   const handleGenerate = useCallback(async () => {
@@ -45,13 +71,22 @@ const App: React.FC = () => {
       setPresentation(result);
       setMainDeck(result.slides); // Show text-based slides first
 
-      // Now generate images sequentially and update state
-      const slidesWithImages = [...result.slides];
-      for (let i = 0; i < slidesWithImages.length; i++) {
-        setLoadingMessage(`Generating slide visual ${i + 1} of ${slidesWithImages.length}...`);
-        const imageUrl = await generateSlideImage(slidesWithImages[i], result.style);
-        slidesWithImages[i] = { ...slidesWithImages[i], imageUrl };
-        setMainDeck([...slidesWithImages]);
+      // Generate images sequentially, updating the UI for each completed slide.
+      for (let i = 0; i < result.slides.length; i++) {
+        setLoadingMessage(`Generating slide visual ${i + 1} of ${result.slides.length}...`);
+        try {
+          const imageUrl = await generateSlideImage(result.slides[i], result.style);
+          // Use a functional update to add the new image URL to the correct slide.
+          // This ensures the UI updates immediately after each image is ready.
+          setMainDeck(currentSlides =>
+            currentSlides.map(slide =>
+              slide.id === result.slides[i].id ? { ...slide, imageUrl } : slide
+            )
+          );
+        } catch (imageError) {
+            console.error(`Failed to generate image for slide ${i + 1}:`, imageError);
+            // Optionally, you could update the slide to show an error state here.
+        }
       }
 
     } catch (error) {
@@ -72,13 +107,20 @@ const App: React.FC = () => {
       setExpandedSlides(newSlides);
       setViewMode(ViewMode.EXPANDED_VIEW);
 
-      // Now generate images for the expanded view
-      const expandedWithImages = [...newSlides];
-      for (let i = 0; i < expandedWithImages.length; i++) {
-          setLoadingMessage(`Generating expanded visual ${i + 1} of ${expandedWithImages.length}...`);
-          const imageUrl = await generateSlideImage(expandedWithImages[i], presentation.style);
-          expandedWithImages[i] = { ...expandedWithImages[i], imageUrl };
-          setExpandedSlides([...expandedWithImages]);
+      // Generate images for the expanded view progressively.
+      for (let i = 0; i < newSlides.length; i++) {
+          setLoadingMessage(`Generating expanded visual ${i + 1} of ${newSlides.length}...`);
+          try {
+            const imageUrl = await generateSlideImage(newSlides[i], presentation.style);
+             // Use a functional update to add the new image URL to the correct expanded slide.
+            setExpandedSlides(currentSlides =>
+              currentSlides.map(s =>
+                s.id === newSlides[i].id ? { ...s, imageUrl } : s
+              )
+            );
+          } catch (imageError) {
+              console.error(`Failed to generate image for expanded slide ${i + 1}:`, imageError);
+          }
       }
     } catch (error) {
        console.error(error);
@@ -94,7 +136,13 @@ const App: React.FC = () => {
     setExpandedSlides([]);
   };
 
-  const currentSlides = viewMode === ViewMode.EXPANDED_VIEW ? expandedSlides : mainDeck;
+  const handleStartSlideshow = () => {
+    if (currentSlides.length > 0) {
+      setSlideshowIndex(0);
+      setIsSlideshowVisible(true);
+    }
+  };
+
 
   return (
     <div className="flex flex-col lg:flex-row h-screen font-sans bg-slate-800 text-slate-200">
@@ -118,7 +166,18 @@ const App: React.FC = () => {
           onExpand={handleExpand}
           isExpandedView={viewMode === ViewMode.EXPANDED_VIEW}
           onGoBack={handleGoBack}
+          onStartSlideshow={handleStartSlideshow}
         />
+        {isSlideshowVisible && presentation && (
+          <Slideshow 
+            slides={currentSlides}
+            style={presentation.style}
+            currentIndex={slideshowIndex}
+            onClose={() => setIsSlideshowVisible(false)}
+            onNext={() => setSlideshowIndex(prev => (prev + 1) % currentSlides.length)}
+            onPrev={() => setSlideshowIndex(prev => (prev - 1 + currentSlides.length) % currentSlides.length)}
+          />
+        )}
       </main>
     </div>
   );

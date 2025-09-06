@@ -79,23 +79,22 @@ Analyze the provided documents (and URLs: ${urls.join(', ') || 'None'}) and gene
     try {
         console.log("Attempting to generate slide structure with the following resources:", resources);
         
-        // Fix: Removed explicit Part[] type to allow for type inference.
-        const contentParts = [
-            { text: prompt }
-        ];
-
-        for (const file of uploadedFiles) {
-            if (file.data && file.mimeType) {
-                contentParts.push({
-                    inlineData: {
-                        mimeType: file.mimeType,
-                        data: file.data,
-                    }
-                });
+        // Fix: The previous method of building contentParts caused a TypeScript type inference error.
+        // This was because the array was initialized with only a text part, and then inlineData parts were pushed.
+        // The fix is to build all parts and create the array at once, allowing TS to correctly infer the union type.
+        const fileParts = uploadedFiles.map(file => ({
+            inlineData: {
+                mimeType: file.mimeType as string,
+                data: file.data as string,
             }
-        }
+        }));
         
-        console.log(`Sending request to Gemini with ${contentParts.length - 1} documents.`);
+        const contentParts = [
+            { text: prompt },
+            ...fileParts
+        ];
+        
+        console.log(`Sending request to Gemini with ${fileParts.length} documents.`);
         
         // Fix: Updated model from 'gemini-2.5-pro' to 'gemini-2.5-flash' and added config to enforce JSON output.
         const response = await ai.models.generateContent({
