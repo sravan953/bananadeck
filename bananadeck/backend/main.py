@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from bananadeck.backend.input2md import UniversalConverter
 from bananadeck.backend.md2ppt_skeleton import MarkdownToPresentationSkeleton
+from bananadeck.backend.ppt_skeleton2slides import PresentationSlideGenerator
 
 load_dotenv()
 GEMINI_KEY = os.getenv("GEMINI_KEY")
@@ -31,13 +32,14 @@ logger = logging.getLogger(__name__)
 
 # Example usage:
 if __name__ == "__main__":
-    input = r"C:\Users\sravan953\Downloads\OpenAI_Productivity-Note_Jul-2025.pdf"
-    # input = "https://www.youtube.com/watch?v=GmGRDi1h6zs&pp=0gcJCcYJAYcqIYzv"
+    # input = r"C:\Users\sravan953\Downloads\OpenAI_Productivity-Note_Jul-2025.pdf"
+    input = "https://www.youtube.com/watch?v=GmGRDi1h6zs&pp=0gcJCcYJAYcqIYzv"
 
     converter = UniversalConverter(logger=logger, api_key=GEMINI_KEY)
     presentation_generator = MarkdownToPresentationSkeleton(
         logger=logger, api_key=GEMINI_KEY
     )
+    slide_generator = PresentationSlideGenerator(logger=logger, api_key=GEMINI_KEY)
 
     try:
         # Determine output directory based on input type
@@ -81,6 +83,23 @@ if __name__ == "__main__":
             markdown_content, presentation_path
         )
         logger.info("Presentation skeleton generation completed successfully")
+
+        # Step 3: Generate slide images from presentation skeleton
+        logger.info("Step 3: Generating slide images from presentation skeleton")
+
+        # Determine the correct slides directory based on input type
+        if input.endswith(".pdf"):
+            slides_output_dir = output_dir / "slides"
+        else:
+            # For YouTube videos, use the same directory as the presentation file
+            slides_output_dir = presentation_path.parent / "slides"
+
+        generated_images = slide_generator.generate_all_slide_images(
+            presentation_path, slides_output_dir
+        )
+        logger.info(
+            f"Slide image generation completed successfully. Generated {len(generated_images)} images"
+        )
 
     except Exception as e:
         logger.error(f"Error processing input: {e}")

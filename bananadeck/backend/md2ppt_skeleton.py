@@ -109,6 +109,13 @@ Transform the markdown content into a compelling presentation that someone could
         Returns:
             Generated presentation skeleton content
         """
+        # Check if presentation file already exists
+        if output_path.exists():
+            self.logger.info(f"Presentation file already exists: {output_path}")
+            self.logger.info("Skipping presentation generation - done")
+            with open(output_path, "r", encoding="utf-8") as f:
+                return f.read()
+
         presentation = self.generate_presentation_skeleton(markdown_content)
         self.save_presentation(presentation, output_path)
         return presentation

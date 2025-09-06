@@ -288,6 +288,17 @@ Then continue with the rest of the markdown document that someone could read and
                 # If no existing folder found, we need to process the video to get the title
                 markdown, video_title = self.process_youtube_video(youtube_url)
 
+                # Create folder with format: <videoID_title> within the provided output_dir
+                safe_title = (
+                    video_title.replace(" ", "_").replace("/", "_").replace("\\", "_")
+                )
+                safe_title = "".join(c for c in safe_title if c.isalnum() or c in "_-")
+                if not safe_title:  # fallback if title is empty or invalid
+                    safe_title = "video"
+
+                folder_name = f"{video_id}_{safe_title}"
+                output_dir = output_dir / folder_name
+
             # Use video title for filename
             filename = (
                 video_title.replace(" ", "_").replace("/", "_").replace("\\", "_")
