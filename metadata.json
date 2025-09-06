@@ -1,0 +1,5 @@
+{
+  "name": "AI Presentation Architect",
+  "description": "An intelligent application that transforms unstructured documents and videos into structured, presentation-ready slides. Users can upload various content, and the AI will analyze it to craft a complete slide deck. It also allows for interactive expansion of concepts within the generated slides.",
+  "requestFramePermissions": []
+}
