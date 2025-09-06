@@ -49,12 +49,12 @@ export const Slideshow: React.FC<SlideshowProps> = ({ slides, style, currentInde
         </button>
 
         {/* Slide Image */}
-        <div className="w-full max-w-6xl aspect-video bg-slate-900 rounded-lg shadow-2xl shadow-black/50 flex items-center justify-center">
+        <div className="w-full max-w-4xl aspect-square bg-slate-900 rounded-lg shadow-2xl shadow-black/50 flex items-center justify-center">
             {currentSlide?.imageUrl ? (
                 <img 
                     src={currentSlide.imageUrl} 
                     alt={currentSlide.title} 
-                    className="max-w-full max-h-full object-contain rounded-lg"
+                    className="w-full h-full object-contain rounded-lg"
                 />
             ) : (
                 <div className="text-slate-400 text-center">

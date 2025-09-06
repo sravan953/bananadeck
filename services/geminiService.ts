@@ -214,7 +214,7 @@ export const generateSlideImage = async (slide: Omit<Slide, 'id'>, _style: Prese
     const depthContext = options?.isExpanded ? 
         `This is an expanded view (Level ${options.depth}) from "${options.parentSlide}". Include a small "L${options.depth}" badge.` : "";
 
-    const prompt = `Create a stunning, modern infographic slide (16:9 ratio).
+    const prompt = `Create a stunning, modern infographic slide (SQUARE 1:1 aspect ratio).
 
     COLORS (ALWAYS USE THESE):
     - Background: #000000 (pure black)
