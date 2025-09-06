@@ -53,28 +53,41 @@ export const generateSlideStructure = async (resources: UploadedResource[]): Pro
     const uploadedFiles = resources.filter(r => r.data && r.mimeType);
     const urls = resources.filter(r => r.url).map(r => r.url);
 
-    const prompt = `You are an expert presentation designer. Your task is to generate a slide deck structure based on the content from the provided documents and URLs.
-Your entire response MUST be a single, valid JSON object, without any markdown formatting, comments, or extra text.
+    const prompt = `You are an expert visual presentation designer specializing in infographic-heavy slides. Create a presentation structure that prioritizes VISUAL STORYTELLING over text.
 
-The JSON object must have the following structure:
+Your response must be a single JSON object matching this structure:
 {
   "style": {
-    "primaryColor": "string (hex code, e.g., #0F172A)",
-    "secondaryColor": "string (hex code, e.g., #334155)",
-    "textColor": "string (hex code, e.g., #F1F5F9)",
-    "font": "string (Google Font name, e.g., Inter)"
+    "primaryColor": "#000000",
+    "secondaryColor": "#2563EB",
+    "textColor": "#FFFFFF",
+    "font": "Inter"
   },
   "slides": [
     {
-      "id": "string (unique ID)",
-      "title": "string (short, impactful title)",
-      "content": ["string", "string", "... (concise bullet points)"],
-      "infographicSuggestion": "string (creative idea for a visual, e.g., 'A timeline showing the evolution of AI')"
+      "id": "string",
+      "title": "string (MAX 5 WORDS - catchy, memorable)",
+      "content": ["string", "string", "string (MAX 3 POINTS, each MAX 8 WORDS)"],
+      "infographicSuggestion": "string (DETAILED visualization description)"
     }
   ]
 }
 
-Analyze the provided documents (and URLs: ${urls.join(', ') || 'None'}) and generate a cohesive presentation with a visual style and 5-7 slides. Do not include any text outside of the JSON object in your response.`;
+CRITICAL RULES:
+1. MINIMAL TEXT: Titles should be 2-5 words. Content points should be 3-8 words each.
+2. MAXIMUM 3 bullet points per slide - less is better!
+3. VISUAL FIRST: The infographicSuggestion should be DETAILED and specific:
+   - Describe the exact type of chart/diagram/visual
+   - Mention specific data points or relationships to show
+   - Suggest visual metaphors or creative representations
+   - Think: "What would make someone understand this WITHOUT reading?"
+
+GOOD infographicSuggestion examples:
+- "Circular flow diagram showing 3 interconnected gears labeled 'Data', 'AI', 'Insights' with arrows showing continuous flow"
+- "Mountain climb visualization with 5 milestone flags showing project phases, with a figure at 60% completion"
+- "Tree diagram where trunk is 'Core Technology' branching into 3 main features, each with 2-3 sub-features as leaves"
+
+Analyze the provided content (URLs: ${urls.join(', ') || 'None'}) and create 5-7 HIGHLY VISUAL slides where the infographic tells the story, not the text.`;
 
     try {
         console.log("Attempting to generate slide structure with the following resources:", resources);
@@ -112,6 +125,13 @@ Analyze the provided documents (and URLs: ${urls.join(', ') || 'None'}) and gene
         // Fix: Simplified JSON parsing by relying on the model's guaranteed JSON output via responseSchema.
         const jsonText = response.text.trim();
         const parsedPresentation = JSON.parse(jsonText) as Presentation;
+        
+        // Mark all main deck slides as expandable
+        parsedPresentation.slides = parsedPresentation.slides.map(slide => ({
+            ...slide,
+            isExpandable: true
+        }));
+        
         console.log("Successfully parsed presentation structure:", parsedPresentation);
         return parsedPresentation;
     } catch (error) {
@@ -120,15 +140,52 @@ Analyze the provided documents (and URLs: ${urls.join(', ') || 'None'}) and gene
     }
 };
 
-export const expandSlideConcept = async (slide: Slide, presentationStyle: Presentation['style']): Promise<Slide[]> => {
-    const prompt = `You are an expert presentation designer, continuing a previous task. A user wants to expand on the following slide:
-    Title: "${slide.title}"
-    Content: "${slide.content.join(', ')}"
+export const expandSlideConcept = async (slide: Slide, presentationStyle: Presentation['style'], expansionType: 'technical' | 'business' | 'examples' | 'questions' = 'technical'): Promise<Slide[]> => {
+    const expansionInstructions = {
+        technical: "Focus on technical implementation details, architecture, methodologies, and deep technical concepts. Include diagrams for system architecture, data flows, or technical processes.",
+        business: "Focus on business impact, ROI, strategic implications, market opportunities, and stakeholder benefits. Include charts for metrics, timelines, or business models.",
+        examples: "Provide concrete case studies, real-world applications, success stories, and practical demonstrations. Include comparison charts or before/after visualizations.",
+        questions: "Anticipate and answer common questions, address potential concerns, clarify misconceptions, and provide FAQs. Include decision trees or Q&A flowcharts."
+    };
+
+    const prompt = `Create a VISUAL EXPANSION of a slide - this is our key innovation! Each expansion tells a deeper visual story.
     
-    Generate 3-4 new, more detailed slides that dive deeper into this specific topic. Maintain the same professional tone and style.
-    For each new slide, provide a unique id, a title, an array of content bullet points, and a creative 'infographicSuggestion' for a visual representation.
-    The visual style is defined by: Primary: ${presentationStyle.primaryColor}, Secondary: ${presentationStyle.secondaryColor}, Font: ${presentationStyle.font}.
-    Respond ONLY with a JSON object containing an array of these new slides, matching the provided schema.`;
+    PARENT SLIDE:
+    Title: "${slide.title}"
+    Key Points: ${slide.content.join(', ')}
+    Parent Visual: "${slide.infographicSuggestion || 'General visualization'}"
+    
+    EXPANSION TYPE: ${expansionType.toUpperCase()}
+    ${expansionInstructions[expansionType]}
+    
+    Generate 3-4 expansion slides with MINIMAL TEXT and MAXIMUM VISUAL IMPACT:
+    
+    CRITICAL RULES:
+    1. VISUAL STORYTELLING: Each slide's infographic should tell the story
+    2. MINIMAL TEXT: Titles max 4 words, content max 3 points of 6 words each
+    3. VISUAL CONTINUITY: Reference the parent slide's visual metaphor
+       - If parent shows a tree, zoom into branches
+       - If parent shows a flow, detail each step
+       - If parent shows connections, explore each node
+       - ALWAYS use black background (#000000) and blue (#2563EB) as primary visual color
+    
+    For each slide:
+    - id: unique string
+    - title: 2-4 word hook
+    - content: MAX 3 bullet points, 6 words each
+    - infographicSuggestion: DETAILED description including:
+      * Exact visualization type (e.g., "Sankey diagram", "Circular timeline")
+      * How it connects to parent visual
+      * Specific data/elements to show
+      * Visual metaphor continuation
+    
+    GOOD EXPANSION EXAMPLES:
+    Parent: "AI Evolution" (timeline visual)
+    → Expansion 1: "Neural Networks Deep Dive" (zoomed timeline segment showing neural net evolution)
+    → Expansion 2: "Transformer Architecture" (exploded view of one timeline point)
+    → Expansion 3: "Real Applications" (timeline branches showing use cases)
+    
+    Make each expansion slide a visual masterpiece that needs minimal text to understand!`;
 
     try {
         // Fix: Updated model from 'gemini-2.5-pro' to the recommended 'gemini-2.5-flash'.
@@ -151,41 +208,58 @@ export const expandSlideConcept = async (slide: Slide, presentationStyle: Presen
     }
 };
 
-// Fix: Refactored the entire function to use the correct `generateImages` API instead of `generateContent`.
-export const generateSlideImage = async (slide: Omit<Slide, 'id'>, style: PresentationStyle): Promise<string> => {
-    const prompt = `Generate a single, visually compelling presentation slide image (16:9 aspect ratio) that functions as an infographic. The slide should be professional, clean, and adhere to a consistent visual theme.
+// Updated to use Gemini 2.5 Flash Image Preview for better infographic generation
+export const generateSlideImage = async (slide: Omit<Slide, 'id'>, _style: PresentationStyle, options?: { isExpandable?: boolean; isExpanded?: boolean; parentSlide?: string; depth?: number }): Promise<string> => {
+    
+    const depthContext = options?.isExpanded ? 
+        `This is an expanded view (Level ${options.depth}) from "${options.parentSlide}". Include a small "L${options.depth}" badge.` : "";
 
-    **System-Level Style Mandate (Apply to all slides):**
-    - **Theme:** Dark, futuristic, and professional, suitable for a tech conference.
-    - **Color Palette:** Use this palette strictly. Background: ${style.primaryColor}. Accent: ${style.secondaryColor}. Text/Data: ${style.textColor}.
-    - **Typography:** Use a clean, legible, sans-serif font like '${style.font}' for any necessary text labels. Text should be minimal.
-    - **Overall Feel:** Modern, data-driven, and easy to understand at a glance.
+    const prompt = `Create a stunning, modern infographic slide (16:9 ratio).
 
-    **Slide-Specific Content & Infographic Task:**
-    - **Main Title:** The slide must have the title: "${slide.title}"
-    - **Infographic Goal:** Create an infographic that visually represents the following concept: "${slide.infographicSuggestion || 'A general visual representation of the key points.'}"
-    - **Core Information to Visualize:** The infographic should convey these key points:
-      ${slide.content.map(point => `- ${point}`).join('\n      ')}
+    COLORS (ALWAYS USE THESE):
+    - Background: #000000 (pure black)
+    - Main visuals: #2563EB (vibrant blue) 
+    - Text/labels: #FFFFFF (white)
+    - Accent variations: #1E40AF (darker blue), #3B82F6 (lighter blue), #60A5FA (sky blue)
+    - Subtle highlights: #1F2937 (dark gray) for containers/borders
 
-    **Execution Instructions:**
-    - **Prioritize Visuals over Text:** Do NOT just write the bullet points on the slide. Instead, transform them into a visual graphic (e.g., charts, diagrams, icons with labels, flowcharts).
-    - **Layout:** The title should be prominent. The infographic should be the central focus.
-    - **Final Output:** Generate ONLY the image of the slide. Do not add any extra text, logos, or watermarks. The final output must be a single image.`;
+    SLIDE CONTENT:
+    Title: "${slide.title}" (place at top, make it prominent but not overwhelming)
+    
+    MAIN INFOGRAPHIC INSTRUCTION:
+    ${slide.infographicSuggestion}
+    
+    Data to incorporate (use visually, not as text):
+    ${slide.content.map(point => `- ${point}`).join('\n    ')}
+    
+    STYLE GUIDELINES:
+    - Modern, clean, professional
+    - Focus 80% on the visual, 20% on text
+    - Use creative data visualization
+    - Add subtle animations/effects if appropriate (glows, gradients)
+    - Keep margins clear (nothing important near edges)
+    - Make it visually striking and memorable
+    
+    ${depthContext}
+    
+    REMEMBER: The infographic should tell the story at a glance. Someone should understand the key message just by looking at the visual, without reading the text.`;
 
     try {
-        const response = await ai.models.generateImages({
-            model: 'imagen-4.0-generate-001',
-            prompt: prompt,
-            config: {
-                numberOfImages: 1,
-                outputMimeType: 'image/png',
-                aspectRatio: '16:9',
-            },
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image-preview',
+            contents: [{ text: prompt }],
         });
 
-        if (response.generatedImages && response.generatedImages.length > 0) {
-            const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-            return `data:image/png;base64,${base64ImageBytes}`;
+        // Extract the generated image from the response
+        if (response && response.candidates && response.candidates[0]) {
+            const candidate = response.candidates[0];
+            if (candidate.content && candidate.content.parts) {
+                for (const part of candidate.content.parts) {
+                    if (part.inlineData && part.inlineData.mimeType.startsWith('image/')) {
+                        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                    }
+                }
+            }
         }
         
         throw new Error("No image was generated for the slide.");

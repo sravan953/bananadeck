@@ -25,7 +25,7 @@ export const Slideshow: React.FC<SlideshowProps> = ({ slides, style, currentInde
     >
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 flex justify-between items-center p-4">
-        <h2 id="slideshow-title" className="text-lg font-semibold text-slate-200" style={{ fontFamily: `'${style.font}', sans-serif` }}>
+        <h2 id="slideshow-title" className="text-lg font-semibold text-slate-200" style={{ fontFamily: `'Inter', sans-serif` }}>
           {currentSlide?.title}
         </h2>
         <button
