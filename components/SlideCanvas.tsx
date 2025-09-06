@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Slide as SlideType, PresentationStyle } from '../types';
 import { Slide } from './Slide';
 import { Loader } from './Loader';
@@ -77,18 +78,25 @@ export const SlideCanvas: React.FC<SlideCanvasProps> = ({
           </div>
         </div>
       </div>
-      <div className="flex-grow min-h-0 flex items-center justify-start overflow-x-auto pb-4">
-        {slides.map((slide, index) => (
-          <Slide 
-            key={slide.id} 
-            slide={slide} 
-            style={presentationStyle} 
-            onExpand={onExpand} 
-            index={index} 
-            isMainDeck={!isExpandedView}
-          />
-        ))}
-      </div>
+      <motion.div 
+        className="flex-grow min-h-0 flex items-center justify-start overflow-x-auto pb-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <AnimatePresence mode="wait">
+          {slides.map((slide, index) => (
+            <Slide 
+              key={slide.id} 
+              slide={slide} 
+              style={presentationStyle} 
+              onExpand={onExpand} 
+              index={index} 
+              isMainDeck={!isExpandedView}
+            />
+          ))}
+        </AnimatePresence>
+      </motion.div>
     </div>
   );
 };
