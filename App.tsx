@@ -40,8 +40,7 @@ const App: React.FC = () => {
     setExpandedSlides([]);
 
     try {
-      const documentUrls = files.map(f => f.url);
-      const result = await generateSlideStructure(documentUrls);
+      const result = await generateSlideStructure(files);
       
       setPresentation(result);
       setMainDeck(result.slides); // Show text-based slides first

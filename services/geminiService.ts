@@ -1,5 +1,6 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
-import type { Presentation, Slide, PresentationStyle } from '../types';
+// Fix: Removed unused imports for Modality and Part, which are no longer needed after refactoring.
+import { GoogleGenAI, Type } from "@google/genai";
+import type { Presentation, Slide, PresentationStyle, UploadedResource } from '../types';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set");
@@ -25,8 +26,34 @@ const slideSchema = {
   required: ['id', 'title', 'content', 'infographicSuggestion'],
 };
 
-export const generateSlideStructure = async (documentUrls: string[]): Promise<Presentation> => {
-    const prompt = `You are an expert presentation designer. Your task is to generate a slide deck structure based on the content from the provided URLs.
+// Fix: Added a response schema for the entire presentation to ensure reliable JSON output.
+const presentationSchema = {
+    type: Type.OBJECT,
+    properties: {
+        style: {
+            type: Type.OBJECT,
+            properties: {
+                primaryColor: { type: Type.STRING },
+                secondaryColor: { type: Type.STRING },
+                textColor: { type: Type.STRING },
+                font: { type: Type.STRING },
+            },
+            required: ['primaryColor', 'secondaryColor', 'textColor', 'font'],
+        },
+        slides: {
+            type: Type.ARRAY,
+            items: slideSchema,
+        },
+    },
+    required: ['style', 'slides'],
+};
+
+export const generateSlideStructure = async (resources: UploadedResource[]): Promise<Presentation> => {
+    
+    const uploadedFiles = resources.filter(r => r.data && r.mimeType);
+    const urls = resources.filter(r => r.url).map(r => r.url);
+
+    const prompt = `You are an expert presentation designer. Your task is to generate a slide deck structure based on the content from the provided documents and URLs.
 Your entire response MUST be a single, valid JSON object, without any markdown formatting, comments, or extra text.
 
 The JSON object must have the following structure:
@@ -47,36 +74,47 @@ The JSON object must have the following structure:
   ]
 }
 
-Analyze the provided URLs and generate a cohesive presentation with a visual style and 5-7 slides. Do not include any text outside of the JSON object in your response.`;
+Analyze the provided documents (and URLs: ${urls.join(', ') || 'None'}) and generate a cohesive presentation with a visual style and 5-7 slides. Do not include any text outside of the JSON object in your response.`;
 
     try {
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-pro",
-            contents: prompt,
-            config: {
-                tools: [{
-                    urlContext: {
-                        files: documentUrls,
-                    }
-                }],
-            },
-        });
+        console.log("Attempting to generate slide structure with the following resources:", resources);
         
-        let jsonText = response.text.trim();
-        // The model might wrap the JSON in ```json ... ```, so we need to extract it.
-        const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
-        if (jsonMatch && jsonMatch[1]) {
-            jsonText = jsonMatch[1];
-        } else {
-            // If no markdown, it might just be the object. Find the first '{' and last '}'
-            const firstBrace = jsonText.indexOf('{');
-            const lastBrace = jsonText.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+        // Fix: Removed explicit Part[] type to allow for type inference.
+        const contentParts = [
+            { text: prompt }
+        ];
+
+        for (const file of uploadedFiles) {
+            if (file.data && file.mimeType) {
+                contentParts.push({
+                    inlineData: {
+                        mimeType: file.mimeType,
+                        data: file.data,
+                    }
+                });
             }
         }
+        
+        console.log(`Sending request to Gemini with ${contentParts.length - 1} documents.`);
+        
+        // Fix: Updated model from 'gemini-2.5-pro' to 'gemini-2.5-flash' and added config to enforce JSON output.
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: contentParts },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: presentationSchema,
+            }
+        });
 
-        return JSON.parse(jsonText) as Presentation;
+        console.log("Received raw response from Gemini:", response);
+        console.log("Extracted text from response:", response.text);
+        
+        // Fix: Simplified JSON parsing by relying on the model's guaranteed JSON output via responseSchema.
+        const jsonText = response.text.trim();
+        const parsedPresentation = JSON.parse(jsonText) as Presentation;
+        console.log("Successfully parsed presentation structure:", parsedPresentation);
+        return parsedPresentation;
     } catch (error) {
         console.error("Error generating slide structure:", error);
         throw new Error("Failed to generate presentation. Please check the console for details.");
@@ -94,8 +132,9 @@ export const expandSlideConcept = async (slide: Slide, presentationStyle: Presen
     Respond ONLY with a JSON object containing an array of these new slides, matching the provided schema.`;
 
     try {
+        // Fix: Updated model from 'gemini-2.5-pro' to the recommended 'gemini-2.5-flash'.
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-pro",
+            model: "gemini-2.5-flash",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -113,6 +152,7 @@ export const expandSlideConcept = async (slide: Slide, presentationStyle: Presen
     }
 };
 
+// Fix: Refactored the entire function to use the correct `generateImages` API instead of `generateContent`.
 export const generateSlideImage = async (slide: Omit<Slide, 'id'>, style: PresentationStyle): Promise<string> => {
     const prompt = `Generate a single, visually compelling presentation slide image (16:9 aspect ratio) that functions as an infographic. The slide should be professional, clean, and adhere to a consistent visual theme.
 
@@ -134,22 +174,21 @@ export const generateSlideImage = async (slide: Omit<Slide, 'id'>, style: Presen
     - **Final Output:** Generate ONLY the image of the slide. Do not add any extra text, logos, or watermarks. The final output must be a single image.`;
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image-preview',
-            contents: {
-                parts: [{ text: prompt }],
-            },
+        const response = await ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: prompt,
             config: {
-                responseModalities: [Modality.IMAGE, Modality.TEXT],
+                numberOfImages: 1,
+                outputMimeType: 'image/png',
+                aspectRatio: '16:9',
             },
         });
 
-        for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData) {
-                const base64ImageBytes: string = part.inlineData.data;
-                return `data:${part.inlineData.mimeType};base64,${base64ImageBytes}`;
-            }
+        if (response.generatedImages && response.generatedImages.length > 0) {
+            const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+            return `data:image/png;base64,${base64ImageBytes}`;
         }
+        
         throw new Error("No image was generated for the slide.");
 
     } catch (error) {

@@ -1,6 +1,14 @@
 export interface UploadedResource {
-  url: string;
+  id: string;
+  name: string;
   type: 'doc' | 'youtube';
+  
+  // For uploaded files
+  mimeType?: string;
+  data?: string; // base64 encoded string (without the data URL prefix)
+
+  // For URLs
+  url?: string;
 }
 
 export interface Slide {
