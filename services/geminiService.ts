@@ -151,41 +151,75 @@ export const expandSlideConcept = async (slide: Slide, presentationStyle: Presen
     }
 };
 
-// Fix: Refactored the entire function to use the correct `generateImages` API instead of `generateContent`.
+// Updated to use Gemini 2.5 Flash Image Preview for better infographic generation
 export const generateSlideImage = async (slide: Omit<Slide, 'id'>, style: PresentationStyle): Promise<string> => {
-    const prompt = `Generate a single, visually compelling presentation slide image (16:9 aspect ratio) that functions as an infographic. The slide should be professional, clean, and adhere to a consistent visual theme.
+    const prompt = `Create a highly visual, professional infographic slide image (16:9 aspect ratio).
 
-    **System-Level Style Mandate (Apply to all slides):**
-    - **Theme:** Dark, futuristic, and professional, suitable for a tech conference.
-    - **Color Palette:** Use this palette strictly. Background: ${style.primaryColor}. Accent: ${style.secondaryColor}. Text/Data: ${style.textColor}.
-    - **Typography:** Use a clean, legible, sans-serif font like '${style.font}' for any necessary text labels. Text should be minimal.
-    - **Overall Feel:** Modern, data-driven, and easy to understand at a glance.
-
-    **Slide-Specific Content & Infographic Task:**
-    - **Main Title:** The slide must have the title: "${slide.title}"
-    - **Infographic Goal:** Create an infographic that visually represents the following concept: "${slide.infographicSuggestion || 'A general visual representation of the key points.'}"
-    - **Core Information to Visualize:** The infographic should convey these key points:
-      ${slide.content.map(point => `- ${point}`).join('\n      ')}
-
-    **Execution Instructions:**
-    - **Prioritize Visuals over Text:** Do NOT just write the bullet points on the slide. Instead, transform them into a visual graphic (e.g., charts, diagrams, icons with labels, flowcharts).
-    - **Layout:** The title should be prominent. The infographic should be the central focus.
-    - **Final Output:** Generate ONLY the image of the slide. Do not add any extra text, logos, or watermarks. The final output must be a single image.`;
+    STRICT VISUAL CONSISTENCY REQUIREMENTS:
+    
+    COLOR PALETTE (MUST USE EXACTLY):
+    - Background: ${style.primaryColor} (use as main background color)
+    - Accent/Primary Elements: ${style.secondaryColor} (use for key visual elements, charts, highlights)
+    - Text/Icons: ${style.textColor} (use for ALL text and line art)
+    - DO NOT introduce any other colors unless absolutely necessary for data differentiation
+    
+    TYPOGRAPHY RULES:
+    - Title Font: ${style.font} or similar clean sans-serif, size 48-60pt, weight 600-700
+    - Label Font: Same font family, size 14-18pt, weight 400-500
+    - Title Position: Top 15% of slide, left-aligned with 60px left margin
+    - Maintain consistent font sizes across all slides
+    
+    LAYOUT STANDARDS:
+    - Margins: 60px on all sides
+    - Title Area: Top 15% of slide height
+    - Content Area: Remaining 85% for infographic
+    - Grid: Use invisible 12-column grid for alignment
+    - Spacing: Consistent 20px between major elements
+    
+    VISUAL STYLE RULES:
+    - Design Language: Flat design with subtle shadows (0-4px blur, 10% opacity)
+    - Icons: Line-based or filled, consistent stroke width (2-3px)
+    - Charts: Clean, minimal, no 3D effects
+    - Shapes: Rounded corners (8px radius) for containers
+    - Lines: 2px stroke for dividers and connectors
+    - Transparency: Use ${style.secondaryColor} at 20% opacity for backgrounds of data containers
+    
+    INFOGRAPHIC CONTENT:
+    Title: "${slide.title}"
+    
+    Visualization Type: ${slide.infographicSuggestion || 'Create a visual diagram, chart, or flowchart'}
+    
+    Data Points to Visualize:
+    ${slide.content.map((point, i) => `${i + 1}. ${point}`).join('\n    ')}
+    
+    EXECUTION CHECKLIST:
+    ✓ Background is exactly ${style.primaryColor}
+    ✓ All major visual elements use ${style.secondaryColor}
+    ✓ All text and icons are ${style.textColor}
+    ✓ Title is prominent and consistently positioned
+    ✓ Visual elements align to an invisible grid
+    ✓ Design matches previous slides in the deck
+    ✓ Focus on data visualization, not text
+    ✓ Professional, conference-ready quality
+    
+    Generate a single slide that maintains perfect visual consistency with other slides while effectively visualizing the data as an infographic.`;
 
     try {
-        const response = await ai.models.generateImages({
-            model: 'imagen-4.0-generate-001',
-            prompt: prompt,
-            config: {
-                numberOfImages: 1,
-                outputMimeType: 'image/png',
-                aspectRatio: '16:9',
-            },
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image-preview',
+            contents: [{ text: prompt }],
         });
 
-        if (response.generatedImages && response.generatedImages.length > 0) {
-            const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-            return `data:image/png;base64,${base64ImageBytes}`;
+        // Extract the generated image from the response
+        if (response && response.candidates && response.candidates[0]) {
+            const candidate = response.candidates[0];
+            if (candidate.content && candidate.content.parts) {
+                for (const part of candidate.content.parts) {
+                    if (part.inlineData && part.inlineData.mimeType.startsWith('image/')) {
+                        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                    }
+                }
+            }
         }
         
         throw new Error("No image was generated for the slide.");
