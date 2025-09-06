@@ -1,5 +1,6 @@
 import logging
 import re
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -147,32 +148,34 @@ TASK: Create 3 new slides that expand on this content. The slides should:
 2. Include additional context from the transcript
 3. Maintain logical flow and progression
 4. Each slide should be substantial and meaningful
+5. **CRITICAL: When creating visual suggestions, ensure they match the theming and style of the original slide image**
 
 OUTPUT FORMAT:
 ## Slide X: [New Title]
 - [Detailed point 1]
 - [Detailed point 2]
 - [Detailed point 3]
-- **Visual suggestion:** [specific visual description]
+- **Visual suggestion:** [specific visual description that matches the original slide's theming, color scheme, and visual style]
 
 ## Slide Y: [New Title]
 - [Detailed point 1]
 - [Detailed point 2]
 - [Detailed point 3]
-- **Visual suggestion:** [specific visual description]
+- **Visual suggestion:** [specific visual description that matches the original slide's theming, color scheme, and visual style]
 
 ## Slide Z: [New Title]
 - [Detailed point 1]
 - [Detailed point 2]
 - [Detailed point 3]
-- **Visual suggestion:** [specific visual description]
+- **Visual suggestion:** [specific visual description that matches the original slide's theming, color scheme, and visual style]
 
 IMPORTANT:
 - Use the exact format above with "## Slide X:" headers
 - Include visual suggestions using the exact format "- **Visual suggestion:**"
 - Make each slide substantial and informative
 - Draw additional details from the transcript content
-- Maintain professional presentation standards"""
+- Maintain professional presentation standards
+- **THEMING REQUIREMENT: All visual suggestions must maintain consistency with the original slide's design theme, color palette, and visual style to ensure a cohesive presentation experience**"""
 
         try:
             response = self.client.models.generate_content(
@@ -258,7 +261,7 @@ IMPORTANT:
             remaining_slide = original_slides[i].copy()
             remaining_slide["slide_number"] = (
                 remaining_slide["slide_number"] + 2
-            )  # +2 because we added 2 new slides
+            )  # +2 because we replaced 1 slide with 3 slides (net +2)
             new_slides.append(remaining_slide)
 
         # Convert back to markdown format
@@ -321,28 +324,98 @@ IMPORTANT:
 
         self.logger.info(f"Expanded presentation saved to: {new_presentation_path}")
 
-        # Generate images only for the expanded slides
-        expanded_slide_images = []
+        # Find the original slide image for theming
+        original_slide_image_path = None
+        try:
+            # Look for the original slide image in v0/slides directory
+            v0_slides_dir = presentation_path.parent / "slides"
+            if v0_slides_dir.exists():
+                original_image_filename = f"slide_{slide_number:02d}.png"
+                original_slide_image_path = v0_slides_dir / original_image_filename
+                if not original_slide_image_path.exists():
+                    self.logger.warning(
+                        f"Original slide image not found: {original_slide_image_path}"
+                    )
+                    original_slide_image_path = None
+                else:
+                    self.logger.info(
+                        f"Found original slide image for theming: {original_slide_image_path}"
+                    )
+            else:
+                self.logger.warning(
+                    f"Original slides directory not found: {v0_slides_dir}"
+                )
+        except Exception as e:
+            self.logger.warning(f"Error finding original slide image: {e}")
+
+        # Handle images for the expanded presentation
+        all_slide_images = []
         slides_dir = output_dir / "slides"
         slides_dir.mkdir(parents=True, exist_ok=True)
 
-        for i, expanded_slide in enumerate(expanded_slides):
-            # Update slide number to match the new presentation
-            expanded_slide["slide_number"] = slide_number + i
+        # Parse the new presentation to get all slides with correct numbering
+        with open(new_presentation_path, "r", encoding="utf-8") as f:
+            new_presentation_content = f.read()
 
-            image_path = self.slide_generator.generate_slide_image(
-                expanded_slide, slides_dir
-            )
-            if image_path:
-                expanded_slide_images.append(image_path)
-                self.logger.info(
-                    f"Generated image for expanded slide {expanded_slide['slide_number']}: {image_path}"
-                )
+        all_slides = self.slide_generator.parse_presentation_skeleton(
+            new_presentation_content
+        )
 
         self.logger.info(
-            f"Slide expansion completed. Generated {len(expanded_slide_images)} new images"
+            f"Processing images for {len(all_slides)} slides in expanded presentation"
         )
-        return new_presentation_path, expanded_slide_images
+
+        # Find the original slides directory
+        original_slides_dir = presentation_path.parent / "slides"
+
+        for slide in all_slides:
+            slide_num = slide["slide_number"]
+
+            # Determine if this is one of the expanded slides (need generation) or a remaining slide (copy)
+            is_expanded_slide = (
+                slide_num >= slide_number
+                and slide_num < slide_number + len(expanded_slides)
+            )
+
+            if is_expanded_slide:
+                # Generate new image for expanded slide with theming
+                image_path = self.slide_generator.generate_slide_image(
+                    slide, slides_dir, original_slide_image_path
+                )
+                if image_path:
+                    all_slide_images.append(image_path)
+                    self.logger.info(
+                        f"Generated image for expanded slide {slide_num}: {image_path}"
+                    )
+            else:
+                # Copy existing image and rename to match new numbering
+                if slide_num < slide_number:
+                    # Slides before the expanded section: copy as-is
+                    original_image_name = f"slide_{slide_num:02d}.png"
+                else:
+                    # Slides after the expanded section: copy from original numbering (subtract 2)
+                    original_slide_num = slide_num - 2
+                    original_image_name = f"slide_{original_slide_num:02d}.png"
+
+                original_image_path = original_slides_dir / original_image_name
+                new_image_path = slides_dir / f"slide_{slide_num:02d}.png"
+
+                if original_image_path.exists():
+                    # Copy the image
+                    shutil.copy2(original_image_path, new_image_path)
+                    all_slide_images.append(new_image_path)
+                    self.logger.info(
+                        f"Copied image for slide {slide_num}: {original_image_name} -> slide_{slide_num:02d}.png"
+                    )
+                else:
+                    self.logger.warning(
+                        f"Original image not found for slide {slide_num}: {original_image_path}"
+                    )
+
+        self.logger.info(
+            f"Slide expansion completed. Processed {len(all_slide_images)} total images"
+        )
+        return new_presentation_path, all_slide_images
 
 
 def expand_slide_workflow(
@@ -361,9 +434,17 @@ def expand_slide_workflow(
     transcript_path = Path(transcript_path)
     output_base_dir = Path(output_base_dir)
 
-    # Create v1 output directory
-    v1_output_dir = output_base_dir / "v1"
-    v1_output_dir.mkdir(parents=True, exist_ok=True)
+    # Find the next available version directory
+    version_num = 1
+    while True:
+        version_dir = output_base_dir / f"v{version_num}"
+        if not version_dir.exists():
+            break
+        version_num += 1
+
+    output_dir = output_base_dir / f"v{version_num}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Creating new version directory: {output_dir}")
 
     # Initialize expander
     expander = SlideExpander(api_key=api_key, logger=logger)
@@ -371,7 +452,7 @@ def expand_slide_workflow(
     try:
         # Expand the slide
         new_presentation_path, new_images = expander.expand_slide(
-            presentation_path, transcript_path, slide_number, v1_output_dir
+            presentation_path, transcript_path, slide_number, output_dir
         )
 
         logger.info(f"Slide expansion completed successfully!")

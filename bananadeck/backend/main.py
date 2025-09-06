@@ -179,8 +179,8 @@ def expand_slide(input_path: str, slide_number: int) -> None:
 if __name__ == "__main__":
     # Example 1: Process input (run this first to create the initial presentation)
     # input = r"C:\Users\sravan953\Downloads\OpenAI_Productivity-Note_Jul-2025.pdf"
-    input = "https://www.youtube.com/watch?v=GmGRDi1h6zs&pp=0gcJCcYJAYcqIYzv"
-    process_input(input)
+    # input = "https://www.youtube.com/watch?v=GmGRDi1h6zs&pp=0gcJCcYJAYcqIYzv"
+    # process_input(input)
 
     # Example 2: Expand a specific slide (uncomment and modify as needed)
-    # expand_slide(input, slide_number=3)  # This will expand slide 3 into 3 slides total
+    expand_slide(input, slide_number=2)

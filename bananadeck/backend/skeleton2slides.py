@@ -55,7 +55,9 @@ class PresentationSlideGenerator:
 
         return slides
 
-    def generate_image_prompt(self, slide: Dict[str, str]) -> str:
+    def generate_image_prompt(
+        self, slide: Dict[str, str], original_slide_image_path: Optional[Path] = None
+    ) -> str:
         """Generate a detailed prompt for image generation based on slide content."""
         title = slide["title"]
         bullet_points = slide["bullet_points"]
@@ -129,6 +131,20 @@ class PresentationSlideGenerator:
                 ]
             )
 
+        # Add theming instructions if original slide image is provided
+        theming_instructions = []
+        if original_slide_image_path and original_slide_image_path.exists():
+            theming_instructions = [
+                "",
+                "THEMING REQUIREMENTS (CRITICAL):",
+                f"- Match the exact theming, color scheme, and visual style of the original slide image: {original_slide_image_path.name}",
+                "- Use the same color palette, fonts, and design elements as the original slide",
+                "- Maintain visual consistency with the original slide's layout and styling",
+                "- Ensure the new slide looks like it belongs to the same presentation series",
+                "- Pay special attention to background colors, text colors, and visual element styling",
+                "- The slide should be visually indistinguishable from the original in terms of design theme",
+            ]
+
         prompt_parts.extend(
             [
                 "",
@@ -143,6 +159,9 @@ class PresentationSlideGenerator:
                 "- Position bullet points clearly and logically",
                 "- Use appropriate visual hierarchy with different text sizes",
                 "- Include subtle background elements or graphics that enhance the message",
+            ]
+            + theming_instructions
+            + [
                 "",
                 "Text rendering requirements:",
                 "- All text must be perfectly legible and accurately rendered",
@@ -157,19 +176,38 @@ class PresentationSlideGenerator:
         return "\n".join(prompt_parts)
 
     def generate_slide_image(
-        self, slide: Dict[str, str], output_dir: Path
+        self,
+        slide: Dict[str, str],
+        output_dir: Path,
+        original_slide_image_path: Optional[Path] = None,
     ) -> Optional[Path]:
         """Generate an image for a single slide using Gemini."""
         try:
-            prompt = self.generate_image_prompt(slide)
+            prompt = self.generate_image_prompt(slide, original_slide_image_path)
             self.logger.info(
                 f"Starting image generation for slide {slide['slide_number']}: {slide['title']}"
             )
 
+            # Prepare content for Gemini request
+            contents = [prompt]
+
+            # Include original slide image if provided
+            if original_slide_image_path and original_slide_image_path.exists():
+                try:
+                    original_image = Image.open(original_slide_image_path)
+                    contents.append(original_image)
+                    self.logger.info(
+                        f"Including original slide image for theming: {original_slide_image_path.name}"
+                    )
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to load original slide image {original_slide_image_path}: {e}"
+                    )
+
             # Generate image using Gemini client
             response = self.client.models.generate_content(
                 model="gemini-2.5-flash-image-preview",
-                contents=[types.Part(text=prompt)],
+                contents=contents,
             )
 
             # Create image filename with simple template: slide_<number>.png
