@@ -195,8 +195,17 @@ const App: React.FC = () => {
       />
       <main className="flex-grow h-full min-w-0 relative">
         {isLoading && (
-            <div className="absolute inset-0 z-10 bg-slate-900/80 backdrop-blur-sm" role="status" aria-live="polite">
-                <Loader message={loadingMessage} />
+            <div className="fixed bottom-4 right-4 z-50 bg-slate-900/95 backdrop-blur-sm rounded-xl p-4 border border-blue-500/30 shadow-2xl" role="status" aria-live="polite">
+                <div className="flex items-center gap-4">
+                    <div className="relative">
+                        <div className="w-8 h-8 border-2 border-blue-500/30 rounded-full animate-spin" />
+                        <div className="absolute inset-0 border-2 border-transparent border-t-blue-400 rounded-full animate-spin" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-semibold text-white">{loadingMessage}</p>
+                        <p className="text-xs text-blue-400">Processing in background...</p>
+                    </div>
+                </div>
             </div>
         )}
         <SlideCanvas
