@@ -1,6 +1,6 @@
-export interface UploadedFile {
-  name: string;
-  type: 'file' | 'url';
+export interface UploadedResource {
+  url: string;
+  type: 'doc' | 'youtube';
 }
 
 export interface Slide {

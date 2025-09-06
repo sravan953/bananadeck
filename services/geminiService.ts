@@ -25,48 +25,57 @@ const slideSchema = {
   required: ['id', 'title', 'content', 'infographicSuggestion'],
 };
 
-const presentationSchema = {
-    type: Type.OBJECT,
-    properties: {
-        style: {
-            type: Type.OBJECT,
-            properties: {
-                primaryColor: { type: Type.STRING, description: 'A hex code for the primary color (e.g., slide background). Example: #0F172A' },
-                secondaryColor: { type: Type.STRING, description: 'A hex code for the secondary accent color (e.g., borders). Example: #334155' },
-                textColor: { type: Type.STRING, description: 'A hex code for the main text color. Example: #F1F5F9' },
-                font: { type: Type.STRING, description: 'A recommended Google Font name. Example: Inter' },
-            },
-            required: ['primaryColor', 'secondaryColor', 'textColor', 'font'],
-        },
-        slides: {
-            type: Type.ARRAY,
-            description: 'An array of 5 to 7 slide objects.',
-            items: slideSchema,
-        },
-    },
-    required: ['style', 'slides'],
-};
+export const generateSlideStructure = async (documentUrls: string[]): Promise<Presentation> => {
+    const prompt = `You are an expert presentation designer. Your task is to generate a slide deck structure based on the content from the provided URLs.
+Your entire response MUST be a single, valid JSON object, without any markdown formatting, comments, or extra text.
 
-export const generateSlideStructure = async (documentSummaries: string): Promise<Presentation> => {
-    const prompt = `You are an expert presentation designer, focusing on visual storytelling. Based on the following source materials: ${documentSummaries}, generate a cohesive slide deck structure.
-    First, define a visual style theme.
-    Then, create an array of 5-7 slides. For each slide, provide:
-    1. A short, impactful title.
-    2. An array of concise content bullet points.
-    3. A creative 'infographicSuggestion' that visually represents the content. This is crucial for the visual design. For example: 'A timeline showing the evolution of AI' or 'A diagram comparing three different algorithms.'
-    4. A unique ID string.
-    Respond ONLY with a JSON object that matches the provided schema.`;
+The JSON object must have the following structure:
+{
+  "style": {
+    "primaryColor": "string (hex code, e.g., #0F172A)",
+    "secondaryColor": "string (hex code, e.g., #334155)",
+    "textColor": "string (hex code, e.g., #F1F5F9)",
+    "font": "string (Google Font name, e.g., Inter)"
+  },
+  "slides": [
+    {
+      "id": "string (unique ID)",
+      "title": "string (short, impactful title)",
+      "content": ["string", "string", "... (concise bullet points)"],
+      "infographicSuggestion": "string (creative idea for a visual, e.g., 'A timeline showing the evolution of AI')"
+    }
+  ]
+}
+
+Analyze the provided URLs and generate a cohesive presentation with a visual style and 5-7 slides. Do not include any text outside of the JSON object in your response.`;
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-2.5-pro",
             contents: prompt,
             config: {
-                responseMimeType: "application/json",
-                responseSchema: presentationSchema,
+                tools: [{
+                    urlContext: {
+                        files: documentUrls,
+                    }
+                }],
             },
         });
-        const jsonText = response.text.trim();
+        
+        let jsonText = response.text.trim();
+        // The model might wrap the JSON in ```json ... ```, so we need to extract it.
+        const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch && jsonMatch[1]) {
+            jsonText = jsonMatch[1];
+        } else {
+            // If no markdown, it might just be the object. Find the first '{' and last '}'
+            const firstBrace = jsonText.indexOf('{');
+            const lastBrace = jsonText.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+            }
+        }
+
         return JSON.parse(jsonText) as Presentation;
     } catch (error) {
         console.error("Error generating slide structure:", error);
@@ -86,7 +95,7 @@ export const expandSlideConcept = async (slide: Slide, presentationStyle: Presen
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-2.5-pro",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",

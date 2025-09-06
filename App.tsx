@@ -2,12 +2,12 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { SlideCanvas } from './components/SlideCanvas';
 import { Loader } from './components/Loader';
-import type { UploadedFile, Slide, PresentationStyle, Presentation } from './types';
+import type { UploadedResource, Slide, PresentationStyle, Presentation } from './types';
 import { ViewMode } from './types';
 import { generateSlideStructure, expandSlideConcept, generateSlideImage } from './services/geminiService';
 
 const App: React.FC = () => {
-  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [files, setFiles] = useState<UploadedResource[]>([]);
   const [presentation, setPresentation] = useState<Presentation | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
@@ -40,8 +40,8 @@ const App: React.FC = () => {
     setExpandedSlides([]);
 
     try {
-      const documentSummary = files.map(f => `${f.type}: ${f.name}`).join(', ');
-      const result = await generateSlideStructure(documentSummary);
+      const documentUrls = files.map(f => f.url);
+      const result = await generateSlideStructure(documentUrls);
       
       setPresentation(result);
       setMainDeck(result.slides); // Show text-based slides first
