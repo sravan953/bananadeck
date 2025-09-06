@@ -45,7 +45,7 @@ Create a presentation structure with the following format:
 ## Slide 2: [Section Title]
 - [Main point with brief explanation]
 - [Supporting detail]
-- [Visual suggestion: describe what visual would help]
+- **Visual suggestion:** [describe what visual would help - be specific about charts, images, diagrams, etc.]
 
 ## Slide 3: [Next Section]
 - [Content point]
@@ -59,11 +59,17 @@ Create a presentation structure with the following format:
 - [Key takeaway 2]
 - [Next steps or call to action]
 
+IMPORTANT FORMATTING RULES:
+- For visual suggestions, ALWAYS use the exact format: "- **Visual suggestion:** [description]"
+- Do NOT use formats like "- Visual:" or "- Visual suggestion:" 
+- The visual suggestion should describe specific visual elements like charts, graphs, images, diagrams, or infographics
+- Be descriptive about what type of visual would best support the content
+
 Guidelines:
 1. Create 8-15 slides maximum for optimal presentation length
 2. Each slide should have a clear, descriptive title
 3. Use bullet points for easy reading
-4. Include visual suggestions where appropriate
+4. Include visual suggestions where appropriate using the exact format specified above
 5. Maintain logical flow and narrative structure
 6. Focus on the most important and actionable information
 7. Make it engaging and audience-appropriate

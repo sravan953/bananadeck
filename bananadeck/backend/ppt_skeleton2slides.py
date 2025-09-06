@@ -61,6 +61,23 @@ class PresentationSlideGenerator:
         bullet_points = slide["bullet_points"]
         visual_suggestion = slide.get("visual_suggestion", "")
 
+        # Filter out any bullet points that contain "Visual:" text - these should be converted to actual visuals
+        filtered_bullet_points = []
+        visual_descriptions = []
+
+        for point in bullet_points:
+            if point.strip().startswith("Visual:") or point.strip().startswith(
+                "visual:"
+            ):
+                # Extract the visual description and add it to visual descriptions
+                visual_desc = (
+                    point.replace("Visual:", "").replace("visual:", "").strip()
+                )
+                if visual_desc:
+                    visual_descriptions.append(visual_desc)
+            else:
+                filtered_bullet_points.append(point)
+
         # Create a narrative, descriptive prompt following Nano Banana best practices
         prompt_parts = [
             "Create a professional presentation slide with high-fidelity text rendering. The slide should be a clean, modern corporate presentation slide with a 16:9 aspect ratio.",
@@ -70,12 +87,46 @@ class PresentationSlideGenerator:
             "The slide contains the following bullet points:",
         ]
 
-        for i, point in enumerate(bullet_points, 1):
+        for i, point in enumerate(filtered_bullet_points, 1):
             prompt_parts.append(f"{i}. {point}")
 
+        # Handle visual suggestions and descriptions
+        all_visual_elements = []
         if visual_suggestion:
+            all_visual_elements.append(visual_suggestion)
+        if visual_descriptions:
+            all_visual_elements.extend(visual_descriptions)
+
+        if all_visual_elements:
             prompt_parts.extend(
-                ["", f"Visual elements to include: {visual_suggestion}"]
+                [
+                    "",
+                    "CRITICAL: Do NOT render the following as text. Instead, create the actual visual elements described:",
+                ]
+            )
+
+            for i, visual in enumerate(all_visual_elements, 1):
+                prompt_parts.append(f"Visual element {i}: {visual}")
+
+            prompt_parts.extend(
+                [
+                    "",
+                    "Visual implementation guidelines:",
+                    "- Convert ALL visual descriptions into actual visual elements (charts, graphs, images, diagrams, etc.)",
+                    "- Do NOT include any text that says 'Visual:' or 'visual:' on the slide",
+                    "- If the description mentions charts, graphs, or data visualization, create clean, professional versions",
+                    "- If it mentions images or photos, create appropriate illustrations or graphics",
+                    "- If it mentions diagrams, create clear, well-structured diagrams",
+                    "- If it mentions infographics, create visually appealing information graphics",
+                    "- If it mentions timelines, create clear chronological visualizations",
+                    "- If it mentions logos or organizations, create stylized representations",
+                    "- If it mentions quotes, create attractive quote callouts or text boxes",
+                    "- If it mentions people or faces, create professional illustrations or silhouettes",
+                    "- If it mentions split-screens or comparisons, create visual layouts that show the comparison",
+                    "- Make sure visual elements complement and enhance the text content",
+                    "- Ensure visual elements are properly integrated into the slide layout",
+                    "- Replace any text descriptions with actual visual representations",
+                ]
             )
 
         prompt_parts.extend(
@@ -99,6 +150,7 @@ class PresentationSlideGenerator:
                 "- Ensure proper contrast between text and background",
                 "- Maintain consistent text alignment and spacing",
                 "- Make sure the slide title stands out from the bullet points",
+                "- NEVER render 'Visual:' or 'visual:' as text on the slide",
             ]
         )
 
@@ -145,12 +197,12 @@ class PresentationSlideGenerator:
                 image_path.touch()
 
             self.logger.info(
-                f"✅ Completed slide {slide['slide_number']}: {image_path.name}"
+                f"Completed slide {slide['slide_number']}: {image_path.name}"
             )
             return image_path
 
         except Exception as e:
-            self.logger.error(f"❌ Failed slide {slide['slide_number']}: {e}")
+            self.logger.error(f"Failed slide {slide['slide_number']}: {e}")
             return None
 
     def generate_all_slide_images(
@@ -184,7 +236,7 @@ class PresentationSlideGenerator:
                     self.logger.warning(f"Slide {i} failed to generate")
 
             self.logger.info(
-                f"✓ Slide generation complete: {len(generated_images)}/{total_slides} images generated successfully"
+                f"Slide generation complete: {len(generated_images)}/{total_slides} images generated successfully"
             )
             return generated_images
 
