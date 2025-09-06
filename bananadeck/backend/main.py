@@ -23,18 +23,15 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(log_file_path),
+        logging.FileHandler(log_file_path, encoding="utf-8"),
         logging.StreamHandler(),
     ],
 )
 logger = logging.getLogger(__name__)
 
 
-# Example usage:
-if __name__ == "__main__":
-    # input = r"C:\Users\sravan953\Downloads\OpenAI_Productivity-Note_Jul-2025.pdf"
-    input = "https://www.youtube.com/watch?v=GmGRDi1h6zs&pp=0gcJCcYJAYcqIYzv"
-
+def process_input(input_path: str) -> None:
+    """Process input file or URL through the complete pipeline."""
     converter = UniversalConverter(logger=logger, api_key=GEMINI_KEY)
     presentation_generator = MarkdownToPresentationSkeleton(
         logger=logger, api_key=GEMINI_KEY
@@ -46,22 +43,22 @@ if __name__ == "__main__":
         project_root = Path(__file__).parent.parent.parent
         outputs_dir = project_root / "outputs"
 
-        if input.endswith(".pdf"):
-            folder_name = Path(input).stem.replace(" ", "_")
+        if input_path.endswith(".pdf"):
+            folder_name = Path(input_path).stem.replace(" ", "_")
             output_dir = outputs_dir / folder_name
         else:  # YouTube URL - let the converter handle folder naming
             output_dir = outputs_dir
 
         # Step 1: Convert input to markdown
-        logger.info(f"Step 1: Converting input to markdown: {input}")
-        markdown_content = converter.convert(input, output_dir)
+        logger.info(f"Step 1: Converting input to markdown: {input_path}")
+        markdown_content = converter.convert(input_path, output_dir)
         logger.info("Markdown conversion completed successfully")
 
         # Step 2: Generate presentation skeleton from markdown
         logger.info("Step 2: Generating presentation skeleton from markdown")
 
         # For PDF files, use the original folder name for presentation
-        if input.endswith(".pdf"):
+        if input_path.endswith(".pdf"):
             presentation_path = output_dir / f"{folder_name}_presentation.md"
         else:
             # For YouTube videos, find the actual output directory that was created
@@ -88,7 +85,7 @@ if __name__ == "__main__":
         logger.info("Step 3: Generating slide images from presentation skeleton")
 
         # Determine the correct slides directory based on input type
-        if input.endswith(".pdf"):
+        if input_path.endswith(".pdf"):
             slides_output_dir = output_dir / "slides"
         else:
             # For YouTube videos, use the same directory as the presentation file
@@ -103,3 +100,10 @@ if __name__ == "__main__":
 
     except Exception as e:
         logger.error(f"Error processing input: {e}")
+
+
+if __name__ == "__main__":
+    # input = r"C:\Users\sravan953\Downloads\OpenAI_Productivity-Note_Jul-2025.pdf"
+    input = "https://www.youtube.com/watch?v=GmGRDi1h6zs&pp=0gcJCcYJAYcqIYzv"
+
+    process_input(input)
